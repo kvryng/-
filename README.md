@@ -50,6 +50,7 @@ streamlit run dash.py
 Данные автоматически загрузятся из файла ```data/superset/arctic_vacancies.parquet```
 
 ## Структура проекта
+```
 projects/
 └── arctic_vacancies/
     ├── kurs.py # Основной скрипт парсинга данных с hh.ru
@@ -58,3 +59,4 @@ projects/
     └── data/
         └── superset/
             └── arctic_vacancies.parquet # Обработанные данные в формате Parquet
+```
