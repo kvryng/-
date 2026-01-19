@@ -42,7 +42,7 @@ streamlit run dash.py
 
 #### Вариант B: Через bat-файл
 Дважды кликните по файлу
-```start_all.bat``` в папке проекта.
+```start.bat``` в папке проекта.
 
 ### 5. Работа с данными
 Запустите парсинг данных (вручную или через Планировщик задач)
@@ -50,11 +50,11 @@ streamlit run dash.py
 Данные автоматически загрузятся из файла ```data/superset/arctic_vacancies.parquet```
 
 ## Структура проекта
-
-arctic_vacancies/
-├── kurs.py # Основной скрипт парсинга данных с hh.ru
-├── dash.py # Streamlit-дашборд для визуализации
-├── start_all.bat # Скрипт запуска дашборда
-└── data/
-    └── superset/
-        └── arctic_vacancies.parquet # Обработанные данные в формате Parquet
+projects/
+└── arctic_vacancies/
+    ├── kurs.py # Основной скрипт парсинга данных с hh.ru
+    ├── dash.py # Streamlit-дашборд для визуализации
+    ├── start.bat # Скрипт запуска дашборда
+    └── data/
+        └── superset/
+            └── arctic_vacancies.parquet # Обработанные данные в формате Parquet
