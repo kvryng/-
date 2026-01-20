@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from pymongo import MongoClient
 from pyspark.sql import SparkSession
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,25 +13,21 @@ os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
 
 # === ID арктических регионов ===
 ARCTIC_AREA_IDS = [1061, 1414, 1985, 1982, 1174, 1146, 1008, 1077]
-MAX_WORKERS = len(ARCTIC_AREA_IDS)
+MAX_WORKERS = 8
 
-# === 1. Сбор данных по одному региону ===
-def fetch_vacancies_for_area(area_id, days_back=30):
+# === 1. Сбор данных по одному региону (без ограничения по дате) ===
+def fetch_vacancies_for_area(area_id):
     client = MongoClient("mongodb://localhost:27017/")
     db = client["arctic_labor"]
     raw_collection = db["raw_vacancies"]
-
-    cutoff = datetime.utcnow() - timedelta(days=days_back)
-    published_from = cutoff.strftime('%Y-%m-%dT%H:%M:%S')
     new_count = 0
 
-    for page in range(0, 20):
+    for page in range(0, 20):  # hh.ru ограничивает пагинацию ~2000 записями (20 стр. × 100)
         try:
             resp = requests.get(
                 "https://api.hh.ru/vacancies",
                 params={
                     'area': area_id,
-                    'date_from': published_from,
                     'per_page': 100,
                     'page': page
                 },
@@ -70,8 +66,8 @@ def fetch_vacancies_for_area(area_id, days_back=30):
 
     return new_count
 
-# === 1. Параллельный сбор с полной очисткой ===
-def fetch_and_store_raw_to_mongo(days_back=30):
+# === 1. Параллельный сбор с полной очисткой (без days_back) ===
+def fetch_and_store_raw_to_mongo():
     client = MongoClient("mongodb://localhost:27017/")
     db = client["arctic_labor"]
     raw_collection = db["raw_vacancies"]
@@ -91,7 +87,7 @@ def fetch_and_store_raw_to_mongo(days_back=30):
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_area = {
-            executor.submit(fetch_vacancies_for_area, area_id, days_back): area_id
+            executor.submit(fetch_vacancies_for_area, area_id): area_id
             for area_id in ARCTIC_AREA_IDS
         }
 
@@ -168,24 +164,15 @@ def process_with_spark_for_superset():
     # Создаём Spark DataFrame
     df_spark = spark.createDataFrame(clean_records)
 
-    # === Конвертируем в Pandas и сохраняем через pyarrow (без Hadoop) ===
+    # === Конвертируем в Pandas и сохраняем через pyarrow ===
     df_pandas = df_spark.toPandas()
 
-    # === Сохранение в Parquet ===
     base_dir = os.path.dirname(os.path.abspath(__file__))
     parquet_path = os.path.join(base_dir, "data", "superset", "arctic_vacancies.parquet")
 
     print(f"Попытка сохранить файл: {parquet_path}")
-
-    # Создаём папку, если её нет
     os.makedirs(os.path.dirname(parquet_path), exist_ok=True)
 
-    # Проверяем, что папка существует
-    if not os.path.exists(os.path.dirname(parquet_path)):
-        print(f"ОШИБКА: не удалось создать папку {os.path.dirname(parquet_path)}")
-        sys.exit(1)
-
-    # Сохраняем файл
     df_pandas.to_parquet(parquet_path, index=False, engine="pyarrow")
     print("Файл успешно сохранён")
 
@@ -195,7 +182,7 @@ def process_with_spark_for_superset():
 
 # === Запуск ===
 if __name__ == "__main__":
-    print("Полная перепарсивка данных...")
-    fetch_and_store_raw_to_mongo(days_back=30)
+    print("Полная перепарсивка данных (все вакансии, без ограничения по дате)...")
+    fetch_and_store_raw_to_mongo()
     parquet_file = process_with_spark_for_superset()
     print("Конвейер завершён.")
